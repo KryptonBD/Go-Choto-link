@@ -150,7 +150,23 @@ func updateShortURL(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"message": "Short URL updated"})
 }
 
-func deleteShortURL(ctx *gin.Context) {}
+func deleteShortURL(ctx *gin.Context) {
+	shortUrl := ctx.Param("shortUrl")
+
+	rdb := db.CreateClient(1)
+	defer rdb.Close()
+
+	_, err := rdb.Get(db.Ctx, shortUrl).Result()
+
+	if err == redis.Nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "Short URL not found"})
+		return
+	}
+
+	rdb.Del(db.Ctx, shortUrl)
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Short URL deleted"})
+}
 
 func redirectURL(ctx *gin.Context) {
 	shortUrl := ctx.Param("shortUrl")
