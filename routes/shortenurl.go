@@ -103,7 +103,7 @@ func getShortURL(ctx *gin.Context) {
 
 	url, err := rdb.Get(db.Ctx, shortUrl).Result()
 
-	if err == redis.Nil {
+	if err == redis.Nil || url == "" {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Short URL not found"})
 		return
 	}
