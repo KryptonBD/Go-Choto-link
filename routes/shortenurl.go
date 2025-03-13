@@ -94,3 +94,77 @@ func shortenURL(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, response)
 }
+
+func getShortURL(ctx *gin.Context) {
+	shortUrl := ctx.Param("shortUrl")
+
+	rdb := db.CreateClient(1)
+	defer rdb.Close()
+
+	url, err := rdb.Get(db.Ctx, shortUrl).Result()
+
+	if err == redis.Nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "Short URL not found"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"url": url})
+}
+
+func updateShortURL(ctx *gin.Context) {
+	shortUrl := ctx.Param("shortUrl")
+
+	var requestBody models.Request
+	err := ctx.ShouldBind(&requestBody)
+
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Could not parse JSON"})
+		return
+	}
+
+	rdb := db.CreateClient(1)
+	defer rdb.Close()
+
+	// Short URL exists and new custom short URL is not taken
+	_, err = rdb.Get(db.Ctx, shortUrl).Result()
+
+	if err == redis.Nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "Short URL not found"})
+		return
+	}
+
+	if requestBody.CustomShort != "" && db.CheckIfShortURLExists(requestBody.CustomShort) {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Custom short URL already taken"})
+		return
+	}
+
+	requestBody.Expiry = 24 * time.Hour
+
+	err = rdb.Set(db.Ctx, shortUrl, requestBody.URL, requestBody.Expiry).Err()
+
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Short URL updated"})
+}
+
+func deleteShortURL(ctx *gin.Context) {}
+
+func redirectURL(ctx *gin.Context) {
+	shortUrl := ctx.Param("shortUrl")
+
+	rdb := db.CreateClient(1)
+
+	defer rdb.Close()
+
+	url, err := rdb.Get(db.Ctx, shortUrl).Result()
+
+	if err == redis.Nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "Short URL not found"})
+		return
+	}
+
+	ctx.Redirect(http.StatusMovedPermanently, url)
+}
